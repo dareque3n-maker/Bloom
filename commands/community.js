@@ -1,10 +1,10 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('community')
-        .setDescription('Manage community settings')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Only Admin
+        .setDescription('Open the community management panel')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         const embed = new EmbedBuilder()
