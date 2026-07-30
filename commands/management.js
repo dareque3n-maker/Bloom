@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -11,16 +11,34 @@ module.exports = {
         if (interaction.options.getSubcommand() === 'panel') {
             const embed = new EmbedBuilder()
                 .setTitle('⚙️ MASTER MANAGEMENT DASHBOARD')
-                .setDescription('Configure your community systems or deploy the ticket panel using the buttons below.')
-                .setColor('#5865F2');
+                .setDescription('Welcome to the server administration control panel. Select any module below to configure your server systems dynamically.')
+                .setColor('#5865F2')
+                .setTimestamp();
 
-            const row1 = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('setup_community_all').setLabel('Community Setup').setStyle(ButtonStyle.Primary).setEmoji('🌍'),
-                new ButtonBuilder().setCustomId('setup_master_ticket').setLabel('Ticket System Setup').setStyle(ButtonStyle.Success).setEmoji('🎫'),
-                new ButtonBuilder().setCustomId('deploy_ticket_panel').setLabel('Deploy Ticket Panel').setStyle(ButtonStyle.Secondary).setEmoji('🚀')
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('setup_ticket_master')
+                    .setLabel('Ticket')
+                    .setEmoji('🎫')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId('setup_store_master')
+                    .setLabel('Store')
+                    .setEmoji('🛒')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId('setup_staff_master')
+                    .setLabel('Staff Apply')
+                    .setEmoji('📝')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('setup_logs_master')
+                    .setLabel('Logs')
+                    .setEmoji('📋')
+                    .setStyle(ButtonStyle.Danger)
             );
 
-            return await interaction.reply({ embeds: [embed], components: [row1], ephemeral: true });
+            return await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
         }
     }
 };
