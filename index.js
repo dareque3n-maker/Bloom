@@ -112,11 +112,13 @@ client.on('guildMemberRemove', async member => {
     const channel = member.guild.channels.cache.get(config.goodbyeChannel);
     if (!channel) return;
 
-    let msg = config.goodbyeMessage || '{user} has left.';
+    let msg = config.welcomeMessage || 'Welcome {user}!';
     msg = msg
-        .replace(/{user}/g, `${member.user.tag}`)
-        .replace(/{accountLefted}/g, `<t:${Math.floor(Date.now() / 1000)}:R>`);
-
+        .replace(/{user}/g, `${member}`)
+        .replace(/{memberCount}/g, member.guild.memberCount)
+        .replace(/{accountCreate}/g, `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`)
+        .replace(/{memberJoined}/g, `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`);
+    
     const embed = new EmbedBuilder()
         .setDescription(msg)
         .setColor('#FF0000')
@@ -126,17 +128,37 @@ client.on('guildMemberRemove', async member => {
     channel.send({ embeds: [embed] }).catch(() => {});
 });
 
-// 5. Auto Response Event
+// 5. Auto Response Event (Embed Support ke sath)
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    const text = message.content.toLowerCase();
+    const userMessage = message.content.toLowerCase();
     const config = await GuildConfig.findOne({ guildId: message.guild.id });
-    if (!config || !config.autoResponses) return;
+    if (!config || !config.autoResponses || config.autoResponses.length === 0) return;
 
-    const matched = config.autoResponses.find(r => text.includes(r.trigger));
+    const matched = config.autoResponses.find(r => {
+        const regex = new RegExp(`\\b${r.trigger}\\b`, 'i');
+        return regex.test(userMessage);
+    });
+    
     if (matched && matched.replyText) {
-        await message.reply(matched.replyText);
+        let replyText = matched.replyText.replace(/\\n/g, '\n');
+        const responseEmbed = new EmbedBuilder().setColor("Blue").setTimestamp();
+
+        // Check if there's an image URL in the reply text
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const foundUrls = replyText.match(urlRegex);
+
+        if (foundUrls && foundUrls.length > 0) {
+            const imageUrl = foundUrls.find(url => url.match(/\.(jpeg|jpg|gif|png|webp)$/i) || url.includes('cdn.discordapp.com') || url.includes('media.discordapp.net'));
+            if (imageUrl) {
+                responseEmbed.setImage(imageUrl);
+                replyText = replyText.replace(imageUrl, '').trim();
+            }
+        }
+
+        if (replyText.length > 0) responseEmbed.setDescription(replyText);
+        return message.reply({ embeds: [responseEmbed] });
     }
 });
 
