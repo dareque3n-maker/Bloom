@@ -22,6 +22,8 @@ class SecurityEngine {
 
     async handleSecurityEvent(guild, executor, action, target, punishmentType = 'ban') {
         const permLevel = await this.verifyPermission(guild, executor);
+        
+        // Agar Owner ya Extra Owner hai toh allow karo
         if (permLevel === 'OWNER' || permLevel === 'EXTRA_OWNER') {
             return { allowed: true, permLevel };
         }
@@ -53,9 +55,9 @@ class SecurityEngine {
             if (!member) return;
 
             if (type === 'ban' && member.bannable) {
-                await guild.bans.create(member, { reason: 'Enterprise Security Engine: Unauthorized Action' });
+                await guild.bans.create(member, { reason: 'Enterprise Security Engine: Unauthorized Bot Add / Anti-Nuke Triggered' });
             } else if (type === 'kick' && member.kickable) {
-                await member.kick('Enterprise Security Engine: Unauthorized Action');
+                await member.kick('Enterprise Security Engine: Unauthorized Bot Add / Anti-Nuke Triggered');
             }
         } catch (error) {
             console.error('Punishment Execution Failed:', error);
@@ -70,11 +72,11 @@ class SecurityEngine {
                 title: '🚨 SECURITY INCIDENT DETECTED',
                 fields: [
                     { name: 'Server', value: `${guild.name} (${guild.id})`, inline: true },
-                    { name: 'Executor', value: `${executor.tag} (${executor.id})`, inline: true },
+                    { name: 'Executor (Admin/User)', value: `${executor.tag} (${executor.id})`, inline: true },
                     { name: 'Action', value: action, inline: true },
-                    { name: 'Target', value: target ? `${target.tag || target.name} (${target.id})` : 'N/A', inline: true },
+                    { name: 'Target Bot', value: target ? `${target.tag || target.name} (${target.id})` : 'N/A', inline: true },
                     { name: 'Whitelist Status', value: whitelistStatus, inline: true },
-                    { name: 'Punishment', value: punishment, inline: true },
+                    { name: 'Punishment Given', value: punishment, inline: true },
                     { name: 'Timestamp', value: new Date().toISOString(), inline: false }
                 ],
                 timestamp: new Date()
@@ -86,4 +88,6 @@ class SecurityEngine {
     }
 }
 
+ModelName = SecurityEngine;
 module.exports = SecurityEngine;
+                     
