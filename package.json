@@ -1,18 +1,13 @@
 {
-  "name": "enterprise-discord-security-bot",
+  "name": "discord-transcript-bot",
   "version": "1.0.0",
-  "description": "Enterprise Grade Discord Security and Anti-Nuke Bot",
-  "main": "src/index.js",
+  "description": "Bot to generate channel transcripts and send to owner DM",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
-  },
-  "engines": {
-    "node": ">=22.0.0"
+    "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "mongoose": "^8.2.0",
+    "discord.js": "^14.14.0",
     "dotenv": "^16.4.5"
   }
 }
