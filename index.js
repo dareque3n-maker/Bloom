@@ -1,9 +1,9 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const Pet = require('./models/Pet');
-const ChannelConfig = require('./models/ChannelConfig'); // New model for channel restriction
+const ChannelConfig = require('./models/ChannelConfig');
 
 const client = new Client({
     intents: [
@@ -14,7 +14,6 @@ const client = new Client({
     ]
 });
 
-// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI).then(() => {
     console.log('Connected to MongoDB Database successfully.');
 }).catch(err => {
@@ -25,7 +24,6 @@ client.once('ready', () => {
     console.log(`Bot is online as ${client.user.tag}`);
 });
 
-// Flexible Prefixes (bloom, BLOOM, Bloom, b)
 const PREFIXES = ['bloom ', 'BLOOM ', 'Bloom ', 'b '];
 const ELEMENTS = [
     "Fire", "Water", "Earth", "Air", "Lightning", "Ice", 
@@ -38,13 +36,9 @@ const activeBattles = new Set();
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // --- CHANNEL RESTRICTION CHECK ---
     const contentLower = message.content.toLowerCase();
-    
-    // Check if message is setting the channel (`bloom set`)
     let usedPrefix = PREFIXES.find(p => contentLower.startsWith(p));
     
-    // If command is specifically "set", handle it before checking restrictions
     if (usedPrefix) {
         const args = message.content.slice(usedPrefix.length).trim().split(/ +/);
         const command = args.shift().toLowerCase();
@@ -64,10 +58,9 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Enforce channel restriction for all other commands
     const channelConfig = await ChannelConfig.findOne({ guildId: message.guild.id });
     if (channelConfig && channelConfig.channelId !== message.channel.id) {
-        return; // Ignore messages in unauthorized channels silently
+        return;
     }
 
     if (!usedPrefix) return;
@@ -75,13 +68,12 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(usedPrefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // Fetch or create user
     let dbUser = await User.findOne({ userId: message.author.id });
     if (!dbUser) {
         dbUser = await User.create({ userId: message.author.id });
     }
 
-    // --- XP & LEVEL SYSTEM (Chat Based) ---
+    // --- XP & LEVEL SYSTEM ---
     if (dbUser.level < 250) {
         dbUser.xpBars += 1;
         let requiredXp = dbUser.level * 500;
@@ -98,7 +90,7 @@ client.on('messageCreate', async message => {
         return message.reply(`You currently have **${dbUser.balance}** Bloom Cash.`);
     }
 
-    // 2. Player Profile Command
+    // 2. Profile Command
     if (command === 'profile') {
         let pet = await Pet.findOne({ userId: message.author.id });
         const embed = new EmbedBuilder()
@@ -117,7 +109,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // 3. Create Pet Command (Allows overwriting/creating fresh without restrictions)
+    // 3. Create Pet Command
     if (command === 'createpet') {
         const petName = args[0];
         const photoUrl = args[1];
@@ -126,7 +118,6 @@ client.on('messageCreate', async message => {
             return message.reply(`Please provide a name and photo URL for your pet! Example: \`bloom createpet Dragon https://i.imgur.com/xyz.png\``);
         }
 
-        // Upsert pet so user can always create or replace their pet cleanly
         let pet = await Pet.findOneAndUpdate(
             { userId: message.author.id },
             { name: petName, photoUrl: photoUrl, hunger: 100, petLevel: 1 },
@@ -136,7 +127,7 @@ client.on('messageCreate', async message => {
         return message.reply(`Successfully registered your pet **${pet.name}**! Check its status using \`bloom pet\`.`);
     }
 
-    // 4. Daily Reward Command
+    // 4. Daily Reward
     if (command === 'daily') {
         const now = new Date();
         if (dbUser.lastDaily && now - dbUser.lastDaily < 24 * 60 * 60 * 1000) {
@@ -151,7 +142,7 @@ client.on('messageCreate', async message => {
         return message.reply(`Daily reward claimed successfully! **+500 Bloom Cash** and **+2 Food Items** added to your inventory.`);
     }
 
-    // 5. Pet Profile Command
+    // 5. Pet Profile
     if (command === 'pet') {
         let pet = await Pet.findOne({ userId: message.author.id });
         if (!pet) return message.reply(`You haven't created a pet yet! Use \`bloom createpet <name> <photo_url>\`.`);
@@ -170,7 +161,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // 6. Feed Pet Command
+    // 6. Feed Pet
     if (command === 'feed') {
         let pet = await Pet.findOne({ userId: message.author.id });
         if (!pet) return message.reply(`You don't have a pet to feed!`);
@@ -190,34 +181,34 @@ client.on('messageCreate', async message => {
         return message.reply(`You fed your pet successfully! Current hunger level is **${pet.hunger}%**.`);
     }
 
-    // 7. Shop Command
+    // 7. Shop Command (Updated Pricing: Card = 1m, Food 5x = 10000)
     if (command === 'shop') {
         const shopEmbed = new EmbedBuilder()
             .setTitle('BLOOM GAME SHOP')
             .setColor('#ffd700')
             .setDescription('Welcome to the shop! Use `bloom buy <item>` to purchase items.')
             .addFields(
-                { name: '1. Food Pack (5x Food)', value: 'Cost: **200 Bloom Cash**\nCommand: `bloom buy food`', inline: false },
-                { name: '2. Element Card Roll', value: 'Cost: **500 Bloom Cash**\nCommand: `bloom buy card`', inline: false },
+                { name: '1. Food Pack (5x Food)', value: 'Cost: **10,000 Bloom Cash**\nCommand: `bloom buy food`', inline: false },
+                { name: '2. Element Card Roll', value: 'Cost: **1,000,000 Bloom Cash**\nCommand: `bloom buy card`', inline: false },
                 { name: 'Available Elements', value: ELEMENTS.join(', '), inline: false }
             );
         return message.reply({ embeds: [shopEmbed] });
     }
 
-    // 8. Buy Command
+    // 8. Buy Command (Updated Pricing)
     if (command === 'buy') {
         const item = args[0]?.toLowerCase();
         if (!item) return message.reply(`Please specify an item to buy! Check \`bloom shop\`.`);
 
         if (item === 'food') {
-            if (dbUser.balance < 200) return message.reply(`You do not have enough Bloom Cash (Requires 200 Cash).`);
-            dbUser.balance -= 200;
+            if (dbUser.balance < 10000) return message.reply(`You do not have enough Bloom Cash (Requires 10,000 Cash).`);
+            dbUser.balance -= 10000;
             dbUser.inventory.food += 5;
             await dbUser.save();
-            return message.reply(`Successfully purchased 5x Food items!`);
+            return message.reply(`Successfully purchased 5x Food items for 10,000 Cash!`);
         } else if (item === 'card') {
-            if (dbUser.balance < 500) return message.reply(`You do not have enough Bloom Cash (Requires 500 Cash).`);
-            dbUser.balance -= 500;
+            if (dbUser.balance < 1000000) return message.reply(`You do not have enough Bloom Cash (Requires 1,000,000 Cash).`);
+            dbUser.balance -= 1000000;
             const randomElement = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
             dbUser.inventory.cards.push({
                 cardId: 'card_' + Date.now(),
@@ -228,25 +219,48 @@ client.on('messageCreate', async message => {
                 unlockedAbilities: 1
             });
             await dbUser.save();
-            return message.reply(`Successfully purchased and unlocked a new **${randomElement} Element Card**!`);
+            return message.reply(`Successfully purchased and unlocked a new **${randomElement} Element Card** for 1,000,000 Cash!`);
         }
         return message.reply(`Invalid item specified. Check \`bloom shop\` for available items.`);
     }
 
-    // 9. Coinflip Game Command
+    // 9. Coinflip / Flip Game (Updated Logic: max 100,000 bet, auto heads if h/t omitted, support for 'all')
     if (['flip', 'cf'].includes(command)) {
-        const choice = args[0]?.toLowerCase();
-        const amount = parseInt(args[1]);
+        let choiceArg = args[0]?.toLowerCase();
+        let amountArg = args[1]?.toLowerCase();
 
-        if (!['heads', 'tails', 'h', 't'].includes(choice) || isNaN(amount) || amount <= 0) {
-            return message.reply(`Usage: \`bloom cf <heads/tails> <amount>\`. Example: \`bloom cf heads 100\``);
+        let choice = 'heads';
+        let amount = 0;
+
+        // Parse arguments handling cases like: b flip 5000, b cf h 5000, b cf 5000, b cf all
+        if (['heads', 'tails', 'h', 't'].includes(choiceArg)) {
+            choice = ['heads', 'h'].includes(choiceArg) ? 'heads' : 'tails';
+            amountArg = args[1]?.toLowerCase();
+        } else if (choiceArg === 'all') {
+            choice = 'heads';
+            amountArg = 'all';
+        } else if (!isNaN(parseInt(choiceArg))) {
+            choice = 'heads'; // default to heads if omitted
+            amountArg = choiceArg;
+        }
+
+        if (amountArg === 'all') {
+            amount = dbUser.balance;
+        } else {
+            amount = parseInt(amountArg);
+        }
+
+        if (isNaN(amount) || amount <= 0) {
+            return message.reply(`Usage: \`bloom cf <heads/tails> <amount>\` or \`bloom flip <amount>\`. Max bet is 100,000.`);
+        }
+
+        if (amount > 100000) {
+            return message.reply(`Maximum bet limit is **100,000 Bloom Cash**!`);
         }
 
         if (dbUser.balance < amount) {
             return message.reply(`You do not have sufficient balance for this bet.`);
         }
-
-        const userChoice = ['heads', 'h'].includes(choice) ? 'heads' : 'tails';
 
         let flipMsg = await message.reply(`🪙 Coin is spinning in the air... 💫`);
         
@@ -256,22 +270,75 @@ client.on('messageCreate', async message => {
 
         setTimeout(async () => {
             const outcome = Math.random() < 0.5 ? 'heads' : 'tails';
-            const won = userChoice === outcome;
+            const won = choice === outcome;
 
             if (won) {
                 dbUser.balance += amount;
                 await dbUser.save();
-                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${userChoice.toUpperCase()}. 🎉 You won **+${amount}** Bloom Cash! New Balance: **${dbUser.balance}**`);
+                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${choice.toUpperCase()}. 🎉 You won **+${amount}** Bloom Cash! New Balance: **${dbUser.balance}**`);
             } else {
                 dbUser.balance -= amount;
                 await dbUser.save();
-                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${userChoice.toUpperCase()}. 😢 You lost **-${amount}** Bloom Cash! New Balance: **${dbUser.balance}**`);
+                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${choice.toUpperCase()}. 😢 You lost **-${amount}** Bloom Cash! New Balance: **${dbUser.balance}**`);
             }
         }, 2000);
         return;
     }
 
-    // 10. Owner Powers & Reset All (`bloom addcash`, `bloom removecash`, `bloom resetall`)
+    // 10. Leaderboards (`bloom lb cash` & `bloom lb ranking`)
+    if (['lb', 'leaderboard'].includes(command)) {
+        const subType = args[0]?.toLowerCase();
+
+        if (['cash', 'c', ''].includes(subType)) {
+            const topUsers = await User.find().sort({ balance: -1 }).limit(10);
+            const embed = new EmbedBuilder()
+                .setTitle(`🏆 Bloom Global Cash Leaderboard`)
+                .setColor('#ffd700');
+
+            let desc = '';
+            topUsers.forEach((u, index) => {
+                desc += `**${index + 1}.** <@${u.userId}> — **${u.balance}** Cash\n`;
+            });
+            embed.setDescription(desc || 'No users found.');
+            return message.reply({ embeds: [embed] });
+        } else if (['r', 'ranking', 'pets'].includes(subType)) {
+            const topPets = await Pet.find().sort({ petLevel: -1 }).limit(10);
+            const embed = new EmbedBuilder()
+                .setTitle(`🐾 Bloom Pet Level Ranking Leaderboard`)
+                .setColor('#00ffcc');
+
+            let desc = '';
+            topPets.forEach((p, index) => {
+                desc += `**${index + 1}.** <@${p.userId}>'s Pet (**${p.name}**) — Level **${p.petLevel}**\n`;
+            });
+            embed.setDescription(desc || 'No pets found.');
+            return message.reply({ embeds: [embed] });
+        }
+    }
+
+    // 11. Owner Panel Command (`/bloom panel` -> triggered via bloom panel or b panel)
+    if (command === 'panel') {
+        if (message.author.id !== BOT_OWNER_ID) {
+            return message.reply(`Access Denied! This command is strictly restricted to the bot owner.`);
+        }
+
+        const panelEmbed = new EmbedBuilder()
+            .setTitle(`👑 Bloom Bot Owner Management Panel`)
+            .setColor('#ff0000')
+            .setDescription(`Welcome to the control panel. Click the button below to configure card images or manage settings.`)
+            .setFooter({ text: 'Restricted Owner Control Panel' });
+
+        const panelButtonRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('owner_modal_card_images')
+                .setLabel('🖼️ Set Card Images')
+                .setStyle(ButtonStyle.Primary)
+        );
+
+        return message.reply({ embeds: [panelEmbed], components: [panelButtonRow] });
+    }
+
+    // Legacy Owner Commands
     if (['addcash', 'removecash', 'resetall'].includes(command)) {
         if (message.author.id !== BOT_OWNER_ID) {
             return message.reply(`Access Denied! This command is strictly restricted to the bot owner.`);
@@ -305,7 +372,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 11. Live 1v1 Battle Command with Interactive Buttons
+    // 12. Live 1v1 Battle Command
     if (command === 'battle') {
         const opponent = message.mentions.users.first();
         if (!opponent) return message.reply(`Please mention an opponent for battle! Example: \`bloom battle @user\``);
@@ -407,53 +474,4 @@ client.on('messageCreate', async message => {
                 turn = opponent.id;
             } else {
                 p1Hp = Math.max(0, p1Hp - damage);
-                logText = `**${p2Pet.name}** used **${chosenAbility.name}** dealing **${damage} damage**!`;
-                turn = message.author.id;
-            }
-
-            if (p1Hp <= 0 || p2Hp <= 0) {
-                collector.stop('ended');
-                const winner = p1Hp > 0 ? message.author : opponent;
-                const winningPet = p1Hp > 0 ? p1Pet : p2Pet;
-
-                p1Pet.hunger = Math.max(0, p1Pet.hunger - 15);
-                p2Pet.hunger = Math.max(0, p2Pet.hunger - 15);
-                await p1Pet.save();
-                await p2Pet.save();
-
-                let winnerUser = await User.findOne({ userId: winner.id });
-                if (winnerUser && winnerUser.inventory.cards.length > 0) {
-                    winnerUser.inventory.cards[0].battleStreak += 1;
-                    await winnerUser.save();
-                }
-
-                const winEmbed = new EmbedBuilder()
-                    .setTitle(`BATTLE FINISHED - WINNER`)
-                    .setColor('#00ff00')
-                    .addFields(
-                        { name: 'Winner', value: `<@${winner.id}> (${winningPet.name})`, inline: false },
-                        { name: 'Final Stats', value: `${message.author.username} HP: **${p1Hp}** | ${opponent.username} HP: **${p2Hp}**`, inline: false },
-                        { name: 'Hunger Status', value: `Both pets lost **15% hunger** due to battle fatigue. Remember to feed them!`, inline: false }
-                    );
-
-                return i.update({ embeds: [winEmbed], components: [] });
-            }
-
-            await i.update({
-                embeds: [getBattleEmbed(logText)],
-                components: getBattleButtons(false)
-            });
-        });
-
-        collector.on('end', (collected, reason) => {
-            activeBattles.delete(message.author.id);
-            activeBattles.delete(opponent.id);
-            if (reason === 'time') {
-                initialMsg.edit({ content: `Battle timed out due to player inactivity.`, components: [] }).catch(() => {});
-            }
-        });
-    }
-});
-
-client.login(process.env.DISCORD_TOKEN);
-            
+                logText = `**${p2Pet
