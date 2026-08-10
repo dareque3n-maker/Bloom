@@ -181,7 +181,7 @@ client.on('messageCreate', async message => {
         return message.reply(`You fed your pet successfully! Current hunger level is **${pet.hunger}%**.`);
     }
 
-    // 7. Shop Command (Updated Pricing: Card = 1m, Food 5x = 10000)
+    // 7. Shop Command
     if (command === 'shop') {
         const shopEmbed = new EmbedBuilder()
             .setTitle('BLOOM GAME SHOP')
@@ -195,7 +195,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [shopEmbed] });
     }
 
-    // 8. Buy Command (Updated Pricing)
+    // 8. Buy Command
     if (command === 'buy') {
         const item = args[0]?.toLowerCase();
         if (!item) return message.reply(`Please specify an item to buy! Check \`bloom shop\`.`);
@@ -224,7 +224,7 @@ client.on('messageCreate', async message => {
         return message.reply(`Invalid item specified. Check \`bloom shop\` for available items.`);
     }
 
-    // 9. Coinflip / Flip Game (Updated Logic: max 100,000 bet, auto heads if h/t omitted, support for 'all')
+    // 9. Coinflip / Flip Game
     if (['flip', 'cf'].includes(command)) {
         let choiceArg = args[0]?.toLowerCase();
         let amountArg = args[1]?.toLowerCase();
@@ -232,7 +232,6 @@ client.on('messageCreate', async message => {
         let choice = 'heads';
         let amount = 0;
 
-        // Parse arguments handling cases like: b flip 5000, b cf h 5000, b cf 5000, b cf all
         if (['heads', 'tails', 'h', 't'].includes(choiceArg)) {
             choice = ['heads', 'h'].includes(choiceArg) ? 'heads' : 'tails';
             amountArg = args[1]?.toLowerCase();
@@ -240,7 +239,7 @@ client.on('messageCreate', async message => {
             choice = 'heads';
             amountArg = 'all';
         } else if (!isNaN(parseInt(choiceArg))) {
-            choice = 'heads'; // default to heads if omitted
+            choice = 'heads';
             amountArg = choiceArg;
         }
 
@@ -285,7 +284,7 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // 10. Leaderboards (`bloom lb cash` & `bloom lb ranking`)
+    // 10. Leaderboards
     if (['lb', 'leaderboard'].includes(command)) {
         const subType = args[0]?.toLowerCase();
 
@@ -316,7 +315,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 11. Owner Panel Command (`/bloom panel` -> triggered via bloom panel or b panel)
+    // 11. Owner Panel Command
     if (command === 'panel') {
         if (message.author.id !== BOT_OWNER_ID) {
             return message.reply(`Access Denied! This command is strictly restricted to the bot owner.`);
@@ -474,4 +473,91 @@ client.on('messageCreate', async message => {
                 turn = opponent.id;
             } else {
                 p1Hp = Math.max(0, p1Hp - damage);
-                logText = `**${p2Pet
+                logText = `**${p2Pet.name}** used **${chosenAbility.name}** dealing **${damage} damage**!`;
+                turn = message.author.id;
+            }
+
+            if (p1Hp <= 0 || p2Hp <= 0) {
+                collector.stop('ended');
+                const winner = p1Hp > 0 ? message.author : opponent;
+                const winningPet = p1Hp > 0 ? p1Pet : p2Pet;
+
+                p1Pet.hunger = Math.max(0, p1Pet.hunger - 15);
+                p2Pet.hunger = Math.max(0, p2Pet.hunger - 15);
+                await p1Pet.save();
+                await p2Pet.save();
+
+                let winnerUser = await User.findOne({ userId: winner.id });
+                if (winnerUser && winnerUser.inventory.cards.length > 0) {
+                    winnerUser.inventory.cards[0].battleStreak += 1;
+                    await winnerUser.save();
+                }
+
+                const winEmbed = new EmbedBuilder()
+                    .setTitle(`BATTLE FINISHED - WINNER`)
+                    .setColor('#00ff00')
+                    .addFields(
+                        { name: 'Winner', value: `<@${winner.id}> (${winningPet.name})`, inline: false },
+                        { name: 'Final Stats', value: `${message.author.username} HP: **${p1Hp}** | ${opponent.username} HP: **${p2Hp}**`, inline: false },
+                        { name: 'Hunger Status', value: `Both pets lost **15% hunger** due to battle fatigue. Remember to feed them!`, inline: false }
+                    );
+
+                return i.update({ embeds: [winEmbed], components: [] });
+            }
+
+            await i.update({
+                embeds: [getBattleEmbed(logText)],
+                components: getBattleButtons(false)
+            });
+        });
+
+        collector.on('end', (collected, reason) => {
+            activeBattles.delete(message.author.id);
+            activeBattles.delete(opponent.id);
+            if (reason === 'time') {
+                initialMsg.edit({ content: `Battle timed out due to player inactivity.`, components: [] }).catch(() => {});
+            }
+        });
+    }
+});
+
+// --- INTERACTION / MODAL HANDLER FOR OWNER PANEL ---
+client.on('interactionCreate', async interaction => {
+    if (interaction.isButton() && interaction.customId === 'owner_modal_card_images') {
+        if (interaction.user.id !== BOT_OWNER_ID) {
+            return interaction.reply({ content: `Access Denied!`, ephemeral: true });
+        }
+
+        const modal = new ModalBuilder()
+            .setCustomId('card_images_modal')
+            .setTitle('Configure Card Images');
+
+        const cardElementInput = new TextInputBuilder()
+            .setCustomId('card_element_input')
+            .setLabel('Card Element (e.g. Fire, Water, Cosmic)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        const cardImageUrlInput = new TextInputBuilder()
+            .setCustomId('card_image_url_input')
+            .setLabel('Card Image URL')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(cardElementInput),
+            new ActionRowBuilder().addComponents(cardImageUrlInput)
+        );
+
+        return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'card_images_modal') {
+        const element = interaction.fields.getTextInputValue('card_element_input');
+        const imageUrl = interaction.fields.getTextInputValue('card_image_url_input');
+
+        return interaction.reply({ content: `Successfully updated image configuration for **${element}** element to: \`${imageUrl}\``, ephemeral: true });
+    }
+});
+
+client.login(process.env.DISCORD_TOKEN);
