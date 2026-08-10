@@ -1,0 +1,14 @@
+{
+  "name": "spark-game-bot",
+  "version": "1.0.0",
+  "description": "A Discord RPG & Economy Game Bot with Pets and Cards",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.2.1"
+  }
+}
