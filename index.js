@@ -30,7 +30,7 @@ const ELEMENTS = [
     "Nature", "Darkness", "Light", "Shadow", "Plasma", "Cosmic"
 ];
 
-// Active battle tracking set
+const BOT_OWNER_ID = '1474216218792558735';
 const activeBattles = new Set();
 
 client.on('messageCreate', async message => {
@@ -66,7 +66,49 @@ client.on('messageCreate', async message => {
         return message.reply(`You currently have **${dbUser.balance}** Spark Cash.`);
     }
 
-    // 2. Daily Reward Command
+    // 2. Player Profile Command (`spark profile`)
+    if (command === 'profile') {
+        let pet = await Pet.findOne({ userId: message.author.id });
+        const embed = new EmbedBuilder()
+            .setTitle(`${message.author.username}'s Profile`)
+            .setColor('#00ffcc')
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: 'Spark Cash', value: `${dbUser.balance} Cash`, inline: true },
+                { name: 'Chat Level', value: `Level ${dbUser.level}`, inline: true },
+                { name: 'XP Progress', value: `${dbUser.xpBars} / ${dbUser.level * 500} Bars`, inline: true },
+                { name: 'Active Pet', value: pet ? `${pet.name} (Lvl ${pet.petLevel})` : 'No pet created yet! Use `spark createpet`', inline: false },
+                { name: 'Inventory', value: `Food Items: **${dbUser.inventory.food}** | Cards: **${dbUser.inventory.cards.length}**`, inline: false }
+            )
+            .setFooter({ text: 'Spark Game Bot Profile System' });
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 3. Create Pet Command (`spark createpet <name> <photo_url>`)
+    if (command === 'createpet') {
+        let existingPet = await Pet.findOne({ userId: message.author.id });
+        if (existingPet) {
+            return message.reply(`You already have a pet named **${existingPet.name}**! You can view it using \`spark pet\`.`);
+        }
+
+        const petName = args[0];
+        const photoUrl = args[1];
+
+        if (!petName || !photoUrl) {
+            return message.reply(`Please provide a name and photo URL for your pet! Example: \`spark createpet Sparky https://i.imgur.com/xyz.png\``);
+        }
+
+        const newPet = await Pet.create({
+            userId: message.author.id,
+            name: petName,
+            photoUrl: photoUrl
+        });
+
+        return message.reply(`Successfully created your pet **${newPet.name}**! Check its status using \`spark pet\`.`);
+    }
+
+    // 4. Daily Reward Command
     if (command === 'daily') {
         const now = new Date();
         if (dbUser.lastDaily && now - dbUser.lastDaily < 24 * 60 * 60 * 1000) {
@@ -81,10 +123,10 @@ client.on('messageCreate', async message => {
         return message.reply(`Daily reward claimed successfully! **+500 Spark Cash** and **+2 Food Items** added to your inventory.`);
     }
 
-    // 3. Pet Profile Command
+    // 5. Pet Profile Command
     if (command === 'pet') {
         let pet = await Pet.findOne({ userId: message.author.id });
-        if (!pet) pet = await Pet.create({ userId: message.author.id });
+        if (!pet) return message.reply(`You haven't created a pet yet! Use \`spark createpet <name> <photo_url>\`.`);
 
         const embed = new EmbedBuilder()
             .setTitle(`${pet.name}'s Profile`)
@@ -100,10 +142,10 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // 4. Feed Pet Command
+    // 6. Feed Pet Command
     if (command === 'feed') {
         let pet = await Pet.findOne({ userId: message.author.id });
-        if (!pet) pet = await Pet.create({ userId: message.author.id });
+        if (!pet) return message.reply(`You don't have a pet to feed!`);
 
         if (dbUser.inventory.food <= 0) {
             return message.reply(`You are out of food items! Use \`spark shop\` to purchase more food.`);
@@ -120,48 +162,116 @@ client.on('messageCreate', async message => {
         return message.reply(`You fed your pet successfully! Current hunger level is **${pet.hunger}%**.`);
     }
 
-    // 5. Shop Command
+    // 7. Shop Command (`spark shop`)
     if (command === 'shop') {
-        return message.reply(
-            `**SPARK GAME SHOP**\n\n` +
-            `**1. Food Pack (5x Food)** - Cost: 200 Cash (\`spark buy food\`)\n` +
-            `**2. Element Card Roll** - Cost: 500 Cash (\`spark roll\`)\n\n` +
-            `*Available Elements:* ${ELEMENTS.join(', ')}`
-        );
+        const shopEmbed = new EmbedBuilder()
+            .setTitle('SPARK GAME SHOP')
+            .setColor('#ffd700')
+            .setDescription('Welcome to the shop! Use `spark buy <item>` to purchase items.')
+            .addFields(
+                { name: '1. Food Pack (5x Food)', value: 'Cost: **200 Spark Cash**\nCommand: `spark buy food`', inline: false },
+                { name: '2. Element Card Roll', value: 'Cost: **500 Spark Cash**\nCommand: `spark buy card`', inline: false },
+                { name: 'Available Elements', value: ELEMENTS.join(', '), inline: false }
+            );
+        return message.reply({ embeds: [shopEmbed] });
     }
 
-    // 6. Buy Command
+    // 8. Buy Command (`spark buy food` / `spark buy card`)
     if (command === 'buy') {
         const item = args[0]?.toLowerCase();
+        if (!item) return message.reply(`Please specify an item to buy! Check \`spark shop\`.`);
+
         if (item === 'food') {
             if (dbUser.balance < 200) return message.reply(`You do not have enough Spark Cash (Requires 200 Cash).`);
             dbUser.balance -= 200;
             dbUser.inventory.food += 5;
             await dbUser.save();
             return message.reply(`Successfully purchased 5x Food items!`);
+        } else if (item === 'card') {
+            if (dbUser.balance < 500) return message.reply(`You do not have enough Spark Cash (Requires 500 Cash).`);
+            dbUser.balance -= 500;
+            const randomElement = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+            dbUser.inventory.cards.push({
+                cardId: 'card_' + Date.now(),
+                name: `${randomElement} Guardian`,
+                element: randomElement,
+                level: 1,
+                battleStreak: 0,
+                unlockedAbilities: 1
+            });
+            await dbUser.save();
+            return message.reply(`Successfully purchased and unlocked a new **${randomElement} Element Card**!`);
         }
         return message.reply(`Invalid item specified. Check \`spark shop\` for available items.`);
     }
 
-    // 7. Coinflip Game Command
+    // 9. Animated Coin Flip Game with Heads & Tails (`spark cf <heads/tails> <amount>`)
     if (['flip', 'cf'].includes(command)) {
-        const amount = parseInt(args[0]);
-        if (isNaN(amount) || amount <= 0) return message.reply(`Please provide a valid betting amount. Example: \`spark flip 100\``);
-        if (dbUser.balance < amount) return message.reply(`You do not have sufficient balance for this bet.`);
+        const choice = args[0]?.toLowerCase();
+        const amount = parseInt(args[1]);
 
-        const win = Math.random() < 0.5;
-        if (win) {
-            dbUser.balance += amount;
-            await dbUser.save();
-            return message.reply(`Victory! You won **+${amount}** Spark Cash. New Balance: **${dbUser.balance}**`);
+        if (!['heads', 'tails', 'h', 't'].includes(choice) || isNaN(amount) || amount <= 0) {
+            return message.reply(`Usage: \`spark cf <heads/tails> <amount>\`. Example: \`spark cf heads 100\``);
+        }
+
+        if (dbUser.balance < amount) {
+            return message.reply(`You do not have sufficient balance for this bet.`);
+        }
+
+        const userChoice = ['heads', 'h'].includes(choice) ? 'heads' : 'tails';
+
+        // Animated flipping message
+        let flipMsg = await message.reply(`🪙 Coin is spinning in the air... 💫`);
+        
+        setTimeout(async () => {
+            await flipMsg.edit(`🪙 Flipping... 🔄`);
+        }, 1000);
+
+        setTimeout(async () => {
+            const outcome = Math.random() < 0.5 ? 'heads' : 'tails';
+            const won = userChoice === outcome;
+
+            if (won) {
+                dbUser.balance += amount;
+                await dbUser.save();
+                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${userChoice.toUpperCase()}. 🎉 You won **+${amount}** Spark Cash! New Balance: **${dbUser.balance}**`);
+            } else {
+                dbUser.balance -= amount;
+                await dbUser.save();
+                await flipMsg.edit(`🪙 Result: **${outcome.toUpperCase()}**! You chose ${userChoice.toUpperCase()}. 😢 You lost **-${amount}** Spark Cash! New Balance: **${dbUser.balance}**`);
+            }
+        }, 2000);
+        return;
+    }
+
+    // 10. Owner Powers (`spark addcash` / `spark removecash`)
+    if (['addcash', 'removecash'].includes(command)) {
+        if (message.author.id !== BOT_OWNER_ID) {
+            return message.reply(`❌ Access Denied! This command is strictly restricted to the bot owner (${BOT_OWNER_ID}).`);
+        }
+
+        const targetUser = message.mentions.users.first();
+        const amount = parseInt(args[1]);
+
+        if (!targetUser || isNaN(amount)) {
+            return message.reply(`Usage: \`spark addcash @user <amount>\` or \`spark removecash @user <amount>\``);
+        }
+
+        let targetDbUser = await User.findOne({ userId: targetUser.id });
+        if (!targetDbUser) targetDbUser = await User.create({ userId: targetUser.id });
+
+        if (command === 'addcash') {
+            targetDbUser.balance += amount;
+            await targetDbUser.save();
+            return message.reply(`Successfully added **${amount}** Spark Cash to <@${targetUser.id}>.`);
         } else {
-            dbUser.balance -= amount;
-            await dbUser.save();
-            return message.reply(`Defeat! You lost **-${amount}** Spark Cash. New Balance: **${dbUser.balance}**`);
+            targetDbUser.balance = Math.max(0, targetDbUser.balance - amount);
+            await targetDbUser.save();
+            return message.reply(`Successfully removed **${amount}** Spark Cash from <@${targetUser.id}>.`);
         }
     }
 
-    // 8. Live 1v1 Battle Command with Interactive Buttons
+    // 11. Live 1v1 Battle Command with Interactive Buttons
     if (command === 'battle') {
         const opponent = message.mentions.users.first();
         if (!opponent) return message.reply(`Please mention an opponent for battle! Example: \`spark battle @user\``);
@@ -175,8 +285,9 @@ client.on('messageCreate', async message => {
         let p1Pet = await Pet.findOne({ userId: message.author.id });
         let p2Pet = await Pet.findOne({ userId: opponent.id });
 
-        if (!p1Pet) p1Pet = await Pet.create({ userId: message.author.id });
-        if (!p2Pet) p2Pet = await Pet.create({ userId: opponent.id });
+        if (!p1Pet || !p2Pet) {
+            return message.reply(`Both players must create a pet first using \`spark createpet <name> <photo_url>\` before battling!`);
+        }
 
         if (p1Pet.hunger < 20) {
             return message.reply(`Your pet (${p1Pet.name}) is too hungry to fight! Use \`spark feed\` first.`);
@@ -288,7 +399,7 @@ client.on('messageCreate', async message => {
                     .addFields(
                         { name: 'Winner', value: `<@${winner.id}> (${winningPet.name})`, inline: false },
                         { name: 'Final Stats', value: `${message.author.username} HP: **${p1Hp}** | ${opponent.username} HP: **${p2Hp}**`, inline: false },
-                        { name: 'Hunger Status', value: `Both pets lost **15% hunger** due to the battle fatigue. Remember to feed them!`, inline: false }
+                        { name: 'Hunger Status', value: `Both pets lost **15% hunger** due to battle fatigue. Remember to feed them!`, inline: false }
                     );
 
                 return i.update({ embeds: [winEmbed], components: [] });
@@ -311,3 +422,4 @@ client.on('messageCreate', async message => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+                    
