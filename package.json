@@ -1,13 +1,15 @@
 {
-  "name": "discord-moderation-bot",
+  "name": "spark-core-bot",
   "version": "1.0.0",
-  "description": "Advanced Discord Security & Moderation Bot",
-  "main": "index.js",
+  "description": "Clean Discord Management Bot",
+  "main": "Index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node Index.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.2.0",
+    "rss-parser": "^3.13.0"
   }
 }
