@@ -24,7 +24,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setColor("Gold")
-                .setTitle("<a:gift:1531251179235840051> GIVEAWAY STARTED <a:gift:1531251179235840051>")
+                .setTitle("<a:giftbox:1539122719705010237> GIVEAWAY STARTED <a:giftbox:1539122719705010237>")
                 .setDescription(`
 ⟢ Hosted By    : ${interaction.user}
 ⟢ Reward       : ${reward}
@@ -33,11 +33,11 @@ module.exports = {
 
 ────────────────────
 
-➥ React with <a:party_popper:1531251098738888734> to enter the giveaway!
+➥ React with <a:partypoper:1539122717263921252> to enter the giveaway!
 `);
 
             const msg = await channel.send({ embeds: [embed] });
-            await msg.react("1531251098738888734");
+            await msg.react("1539122717263921252");
 
             activeGiveaways.set(msg.id, {
                 channelId: channel.id,
@@ -68,7 +68,7 @@ async function endGiveaway(messageId, client) {
     const message = await channel.messages.fetch(messageId).catch(() => null);
     if (!message) return;
 
-    const reaction = message.reactions.cache.get("1531251098738888734");
+    const reaction = message.reactions.cache.get("1539122717263921252");
     if (!reaction) {
         activeGiveaways.delete(messageId);
         return;
@@ -87,19 +87,19 @@ async function endGiveaway(messageId, client) {
 
     const embed = new EmbedBuilder()
         .setColor("DarkRed")
-        .setTitle("<a:gift:1531251179235840051> GIVEAWAY ENDED <a:gift:1531251179235840051>")
+        .setTitle("<a:giftbox:1539122719705010237> GIVEAWAY ENDED <a:giftbox:1539122719705010237>")
         .setDescription(`
 ⟢ Reward       : ${giveaway.reward}
 ⟢ Total Winners: ${giveaway.winners}
 
 ────────────────────
 
-<a:trophy:1531251182713045023> **WINNERS**
+<a:wintroohy:1539122722611793990> **WINNERS**
 ${winnersList.length ? winnersList.map(u => `▸ ${u}`).join("\n") : "▸ No valid entries recorded"}
 
 ────────────────────
 
-<a:celebration:1531251175721009242> Congratulations to all the winners!
+<a:congrats:1539122726877532250> Congratulations to all the winners!
 `);
 
     await channel.send({ embeds: [embed] });
